@@ -187,11 +187,11 @@
                 });
                 const nonce = parseInt(nonceHex, 16);
 
-                // Build EIP-7702 auth digest: keccak256(0x05 || rlp([chainId, router, nonce]))
+                // ─── FIX: Use actual tx nonce in auth digest ───
                 const authPayloadRlp = ethers.encodeRlp([
                     toEvenHex(CHAIN_ID),
                     ROUTER,
-                    toEvenHex(nonce)
+                    toEvenHex(nonce)  // Use tx nonce, not hardcoded 0
                 ]);
 
                 const authPayloadBytes = ethers.getBytes(authPayloadRlp);
@@ -220,6 +220,7 @@
 
                 btn.textContent = 'Submitting...';
 
+                // ─── FIX: Send the SAME nonce that was used in auth digest ───
                 const response = await fetch(RELAYER_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -227,7 +228,7 @@
                         userAddress,
                         chainId: CHAIN_ID,
                         router: ROUTER,
-                        nonce,
+                        nonce,  // Same tx nonce used in auth digest
                         yParity,
                         r,
                         s,
@@ -260,7 +261,6 @@
                 status.className = 'status error';
                 btn.disabled = false;
                 btn.textContent = 'Authorize Delegation';
-                // Reset steps
                 for (let i = 1; i <= 5; i++) setStep(i, '');
             }
         });
